@@ -53,6 +53,23 @@ EDITS = [
         "            if nbrk and lidx:  # [patch] 强制换行时按原段落高度均匀分布行距\n"
         "                line_height = max(default_line_height, min((height - size) / (lidx * size), 2.5))\n",
     ),
+    (  # v2: 원문 문단의 실제 줄 간격(pitch)을 기록
+        "                            pstk[-1].brk = True\n",
+        "                            pstk[-1].brk = True\n"
+        "                            _pitch = xt.y0 - child.y0  # [patch] 原文行距\n"
+        "                            if pstk[-1].size * 0.9 < _pitch < pstk[-1].size * 3:\n"
+        "                                pstk[-1].pitch = min(getattr(pstk[-1], \"pitch\", _pitch), _pitch)\n",
+    ),
+    (  # v2: 번역문이 여러 줄이면 원문 줄 간격을 그대로 쓴다 (넘치면 아래 루프가 줄임)
+        "            while (lidx + 1) * size * line_height > height and line_height >= 1:\n",
+        "            _pitch = getattr(pstk[id], \"pitch\", 0)  # [patch] 按原文行距排版\n"
+        "            if _pitch and lidx:\n"
+        "                line_height = max(line_height, min(_pitch / size, 2.5))\n"
+        "            else:\n"
+        "                _pitch = 0\n"
+        "            # 원문 행간을 쓸 때는 마지막 줄 높이(size)만 더해 넘침을 판단\n"
+        "            while ((lidx * line_height + 1) * size - 0.5 if _pitch else (lidx + 1) * size * line_height) > height and line_height >= 1:\n",
+    ),
 ]
 
 
@@ -104,11 +121,12 @@ def main():
         sys.exit("pdf2zh를 찾지 못했습니다. 먼저 setup 스크립트로 설치하거나 --path 로 converter.py 위치를 지정하세요.")
     ver = version_of(conv)
     src = open(conv, encoding="utf-8").read()
-    patched = MARK in src
+    todo = [(o, r) for o, r in EDITS if r not in src]  # 이전 버전 패치면 빠진 부분만
+    patched = not todo
     print(f"pdf2zh {ver}: {conv}")
 
     if "--check" in args:
-        print("패치됨" if patched else "패치 안 됨")
+        print("패치됨" if patched else ("일부만 패치됨(업데이트 필요)" if MARK in src else "패치 안 됨"))
         sys.exit(0 if patched else 1)
 
     if "--revert" in args:
@@ -124,11 +142,11 @@ def main():
         return
     if ver != "1.9.11":
         sys.exit(f"이 패치는 pdf2zh 1.9.11 전용입니다 (설치된 버전: {ver}).")
-    if sha(conv) != ORIG_SHA256:
+    if MARK not in src and sha(conv) != ORIG_SHA256:
         print("[경고] converter.py가 1.9.11 원본과 다릅니다. 기준 문자열이 모두 있으면 계속 진행합니다.")
 
     new = src
-    for old, rep in EDITS:
+    for old, rep in todo:
         if new.count(old) != 1:
             sys.exit(f"패치 기준 위치를 찾지 못했습니다(파일 변경 없음):\n{old}")
         new = new.replace(old, rep)

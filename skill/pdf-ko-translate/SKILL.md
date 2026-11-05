@@ -21,7 +21,7 @@ pdf2zh는 레이아웃 배치만 맡고, 번역문은 처음부터 Claude가 직
    - 설치 후 현재 셸에서 안 잡히면 `~/.local/bin`을 PATH 앞에 붙여 실행.
 2. `uv run --no-project python -I $K/ensure_env.py` 실행. 하는 일:
    - pdf2zh 1.9.11이 없거나 버전이 다르면 `$K/requirements-lock.txt`로 의존성 버전을 고정해 설치(처음 한 번, 수 분 걸림. 사용자에게 미리 알림)
-   - 줄바꿈 패치(`$K/apply_patch.py`)가 없으면 적용 → 번역문의 `\n`이 강제 줄바꿈이 된다
+   - 패치(`$K/apply_patch.py`)가 없거나 예전 버전이면 빠진 부분만 적용 → 번역문의 `\n`이 강제 줄바꿈이 되고, 행간이 원문과 같아진다
    - "준비 완료"가 나오면 다음 단계로. (pdf2zh가 PATH에 없어도 된다. `pdf2zh_claude.py`가 설치 위치를 찾아 실행한다.)
    - 실패하면 출력 메시지를 사용자에게 그대로 보여 주고 멈춘다.
 
@@ -74,3 +74,6 @@ PNG를 **모든 페이지** 열어 확인: 빈칸(조각 순서), 오른쪽 넘�
 3. `line_height = default_line_height` 다음:
    `if nbrk and lidx: line_height = max(default_line_height, min((height - size) / (lidx * size), 2.5))`
    (강제 줄바꿈이 있으면 원래 문단 높이에 맞게 행간을 벌림).
+4. (행간) 줄바꿈 감지 지점(`pstk[-1].brk = True`)에서 원문 줄 간격 `xt.y0 - child.y0`을 문단의 `pitch`로 기록(최솟값).
+5. 넘침 축소 루프 직전: 번역문이 2줄 이상이고 `pitch`가 있으면 `line_height = max(line_height, min(pitch / size, 2.5))`,
+   넘침 판단은 `(lidx * line_height + 1) * size - 0.5 > height`(마지막 줄은 글자 높이만). 기본 한국어 행간 1.2가 원문보다 빽빽해지는 문제 해결.

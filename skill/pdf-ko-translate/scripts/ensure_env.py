@@ -56,7 +56,7 @@ def main():
             sys.exit(f"설치 후에도 pdf2zh {VERSION} 을 찾지 못했습니다.")
 
     src = open(conv, encoding="utf-8").read()
-    if ap.MARK not in src:
+    if any(rep not in src for _, rep in ap.EDITS):  # 미적용 또는 이전 버전 패치
         if check_only:
             print("준비 안 됨: 줄바꿈 패치 필요")
             sys.exit(1)

@@ -1,8 +1,18 @@
 diff --git a/pdf2zh/converter.py b/pdf2zh/converter.py
-index 66a9c55..a73088c 100644
+index 66a9c55..05804ba 100644
 --- a/pdf2zh/converter.py
 +++ b/pdf2zh/converter.py
-@@ -400,6 +400,7 @@ class TranslateConverter(PDFConverterEx):
+@@ -285,6 +285,9 @@ class TranslateConverter(PDFConverterEx):
+                         elif child.x1 < xt.x0:      # 添加换行空格并标记原文段落存在换行
+                             sstk[-1] += " "
+                             pstk[-1].brk = True
++                            _pitch = xt.y0 - child.y0  # [patch] 原文行距
++                            if pstk[-1].size * 0.9 < _pitch < pstk[-1].size * 3:
++                                pstk[-1].pitch = min(getattr(pstk[-1], "pitch", _pitch), _pitch)
+                     else:                           # 根据当前字符构建一个新的段落
+                         sstk.append("")
+                         pstk.append(Paragraph(child.y0, child.x0, child.x0, child.x0, child.y0, child.y1, child.size, False))
+@@ -400,6 +403,7 @@ class TranslateConverter(PDFConverterEx):
              tx = x
              fcur_ = fcur
              ptr = 0
@@ -10,7 +20,7 @@ index 66a9c55..a73088c 100644
              log.debug(f"< {y} {x} {x0} {x1} {size} {brk} > {sstk[id]} | {new}")
  
              ops_vals: list[dict] = []
-@@ -420,6 +421,23 @@ class TranslateConverter(PDFConverterEx):
+@@ -420,6 +424,23 @@ class TranslateConverter(PDFConverterEx):
                          mod = var[vid][-1].width
                  else:  # 加载文字
                      ch = new[ptr]
@@ -34,12 +44,21 @@ index 66a9c55..a73088c 100644
                      fcur_ = None
                      try:
                          if fcur_ is None and self.fontmap["tiro"].to_unichr(ord(ch)) == ch:
-@@ -509,6 +527,8 @@ class TranslateConverter(PDFConverterEx):
+@@ -509,8 +530,16 @@ class TranslateConverter(PDFConverterEx):
                  })
  
              line_height = default_line_height
 +            if nbrk and lidx:  # [patch] 强制换行时按原段落高度均匀分布行距
 +                line_height = max(default_line_height, min((height - size) / (lidx * size), 2.5))
  
-             while (lidx + 1) * size * line_height > height and line_height >= 1:
+-            while (lidx + 1) * size * line_height > height and line_height >= 1:
++            _pitch = getattr(pstk[id], "pitch", 0)  # [patch] 按原文行距排版
++            if _pitch and lidx:
++                line_height = max(line_height, min(_pitch / size, 2.5))
++            else:
++                _pitch = 0
++            # 원문 행간을 쓸 때는 마지막 줄 높이(size)만 더해 넘침을 판단
++            while ((lidx * line_height + 1) * size - 0.5 if _pitch else (lidx + 1) * size * line_height) > height and line_height >= 1:
                  line_height -= 0.05
+ 
+             for vals in ops_vals:
