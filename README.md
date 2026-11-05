@@ -23,14 +23,14 @@ pdf2zh 원본은 번역문의 줄바꿈을 무시합니다. 그래서 `patch/app
 
 ```powershell
 # Windows
-git clone <이 저장소 주소>
+git clone https://github.com/damdammind/pdf-ko-translate.git
 cd pdf-ko-translate
 powershell -ExecutionPolicy Bypass -File setup.ps1
 ```
 
 ```bash
 # macOS / Linux
-git clone <이 저장소 주소>
+git clone https://github.com/damdammind/pdf-ko-translate.git
 cd pdf-ko-translate
 bash setup.sh
 ```
