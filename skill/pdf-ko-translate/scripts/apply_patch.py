@@ -57,9 +57,9 @@ EDITS = [
 
 
 def tool_dirs():
+    if os.environ.get("UV_TOOL_DIR"):  # uv와 같이, 지정돼 있으면 그곳만 본다
+        return [os.environ["UV_TOOL_DIR"]]
     dirs = []
-    if os.environ.get("UV_TOOL_DIR"):
-        dirs.append(os.environ["UV_TOOL_DIR"])
     try:
         out = subprocess.run(["uv", "tool", "dir"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30).stdout.strip()
         if out:

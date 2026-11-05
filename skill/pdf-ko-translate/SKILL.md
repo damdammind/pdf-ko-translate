@@ -9,13 +9,21 @@ pdf2zh는 레이아웃 배치만 맡고, 번역문은 Claude가 직접 쓴다. p
 `~/.cache/pdf2zh/cache.v1.db`(`_translationcache`)에 저장해 두고 재사용하므로, 그 캐시에
 Claude 번역을 넣고 다시 실행하면 원본 레이아웃에 Claude 번역이 들어간다.
 
-스크립트: `~/.claude/skills/pdf-ko-translate/scripts/` (이하 `$K`)
+스크립트: 이 SKILL.md가 있는 폴더의 `scripts/` (보통 `~/.claude/skills/pdf-ko-translate/scripts/`, 이하 `$K`)
 실행: `uv run --no-project [--with pymupdf] python -I $K/<script>.py ...`
 
-## 0. 사전 확인
-- 설치 확인: `pdf2zh --version`이 1.9.11이어야 하고, 줄바꿈 패치가 들어 있어야 번역문의 `\n`이
-  줄바꿈으로 처리된다. 확인: `uv run --no-project python -I $K/apply_patch.py --check`
-  (패치 안 됨이면 사용자에게 알리고 `apply_patch.py`를 실행. pdf2zh가 없으면 이 프로젝트의 setup 스크립트를 안내)
+## 0. 환경 자동 준비 (매번 가장 먼저)
+1. `uv`가 있는지 확인(`uv --version`). 없으면 사용자에게 "uv(파이썬 도구 관리자)를 설치합니다"라고 한 줄 알리고 설치:
+   - Windows: `powershell -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+   - macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+   - 설치 후 현재 셸에서 안 잡히면 `~/.local/bin`을 PATH 앞에 붙여 실행.
+2. `uv run --no-project python -I $K/ensure_env.py` 실행. 하는 일:
+   - pdf2zh 1.9.11이 없거나 버전이 다르면 `$K/requirements-lock.txt`로 의존성 버전을 고정해 설치(처음 한 번, 수 분 걸림. 사용자에게 미리 알림)
+   - 줄바꿈 패치(`$K/apply_patch.py`)가 없으면 적용 → 번역문의 `\n`이 강제 줄바꿈이 된다
+   - "준비 완료"가 나오면 다음 단계로. pdf2zh가 PATH에 없다는 주의가 나오면 `uv tool dir --bin`의 pdf2zh를 전체 경로로 쓴다.
+   - 실패하면 출력 메시지를 사용자에게 그대로 보여 주고 멈춘다.
+
+## 0-1. 실행 시 주의
 - 번역 서비스는 `-s bing`을 쓴다(Google은 막히는 네트워크가 많음). Bing 결과는 버려지고 Claude 번역으로 바뀐다.
   출력 폴더는 미리 만들어 둔다(없으면 저장 단계에서 죽음).
 - pdf2zh는 **작업 폴더 안에서** 실행한다(scratchpad 경로는 이 환경에서 실패함). 한글 파일명은 영문 이름으로 복사해서 쓴다.
