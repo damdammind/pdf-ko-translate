@@ -26,7 +26,7 @@ pdf2zh 원본은 번역문의 줄바꿈을 무시합니다. 그래서 `apply_pat
 
 > https://github.com/damdammind/pdf-ko-translate 를 받아서 skill/pdf-ko-translate 폴더를 내 Claude Code 스킬 폴더(~/.claude/skills)에 설치해줘
 
-비공개 저장소라면 처음 받을 때 Git 로그인 창(브라우저)이 한 번 뜹니다.
+공개 저장소라 GitHub 로그인도 필요 없습니다.
 
 **직접 하려면**
 
