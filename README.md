@@ -1,6 +1,6 @@
 # pdf-ko-translate
 
-영어 PDF를 **원본 레이아웃과 줄바꿈을 그대로 둔 채**, 기계 번역이 아닌 **Claude 품질의 한국어**로 번역하는 Claude Code 스킬입니다. 번역 API 키가 필요 없습니다.
+영어 PDF를 **원본 레이아웃과 줄바꿈을 그대로 둔 채**, 기계 번역이 아닌 **Claude가 직접 쓴 한국어**로 번역하는 Claude Code 스킬입니다. 외부 번역 서비스나 API 키가 필요 없습니다.
 
 - 레이아웃 배치: [pdf2zh (PDFMathTranslate)](https://github.com/Byaidu/PDFMathTranslate) 1.9.11
 - 번역: Claude Code가 문맥을 보며 직접 번역
@@ -8,12 +8,15 @@
 
 ## 동작 방식
 
-1. pdf2zh를 Bing 번역으로 한 번 실행해 PDF를 문단 조각으로 나누고, 조각들을 pdf2zh 번역 캐시(`~/.cache/pdf2zh/cache.v1.db`)에 저장합니다.
-2. `export_segments.py`가 그 조각들을 꺼내고, 원본 PDF에서 **강제 줄바꿈 위치**(목록 항목, 명령어 줄 등)를 찾아 표시합니다.
-3. Claude가 조각을 번역하고, 원본의 강제 줄바꿈 자리에 `\n`을 넣습니다.
-4. `apply_translations.py`가 캐시의 Bing 번역을 Claude 번역으로 바꿉니다.
-5. pdf2zh를 다시 실행하면 캐시에 있는 번역을 그대로 쓰므로, 원본 레이아웃에 Claude 번역이 들어갑니다.
-6. `render_pages.py`로 모든 페이지를 이미지로 확인하고, 문제가 있는 조각만 고쳐 다시 만듭니다.
+번역은 처음부터 끝까지 Claude가 합니다. Bing·Google 같은 외부 번역 서비스는 쓰지 않고, 문서 텍스트도 Claude 말고는 어디에도 보내지 않습니다. pdf2zh는 PDF를 나누고 다시 조립하는 레이아웃 도구로만 씁니다.
+
+1. `pdf2zh_claude.py`가 pdf2zh를 실행합니다. 이때 번역 엔진을 "원문을 그대로 돌려주는" 가짜 엔진(`claude`)으로 바꿔 두어서, pdf2zh는 외부에 접속하지 않고 PDF를 문단 조각으로 나눠 번역 캐시(`~/.cache/pdf2zh/cache.v1.db`)에 자리만 만듭니다.
+2. `export_segments.py`가 그 조각들을 꺼내고, 원본 PDF에서 강제 줄바꿈 위치(목록 항목, 명령어 줄 등)를 찾아 표시합니다.
+3. Claude가 모든 조각을 문맥을 보며 번역하고, 원본의 강제 줄바꿈 자리에 `
+`을 넣습니다.
+4. `apply_translations.py`가 Claude 번역을 캐시의 자리에 넣습니다.
+5. `pdf2zh_claude.py`를 다시 실행하면 pdf2zh가 캐시의 Claude 번역을 원본 레이아웃에 배치합니다.
+6. `render_pages.py`로 모든 페이지를 이미지로 확인하고, 줄 넘침·빈칸 같은 배치 문제가 있는 조각만 고쳐 다시 만듭니다.
 
 pdf2zh 원본은 번역문의 줄바꿈을 무시합니다. 그래서 `apply_patch.py`로 `
 `이 있으면 그 자리에서 줄을 바꾸고, 원래 문단 높이에 맞게 줄 간격을 벌리도록 고칩니다([patch/converter.diff](patch/converter.diff) 참고).
@@ -78,7 +81,6 @@ pdf2zh를 다시 설치하거나 업데이트하면 패치가 사라지지만, �
 - 원본 링크의 밑줄(파란 선)은 원래 위치에 그대로 남습니다.
 - 이미지 안에 있는 글자는 번역되지 않습니다.
 - 원본에서 한 줄짜리 문단은 pdf2zh가 줄을 바꾸지 않으므로, 번역문을 원문 폭에 맞게 간결하게 써야 합니다.
-- pdf2zh 1단계에서 Bing 번역 서비스에 접속합니다. Bing이 막힌 네트워크에서는 `-s` 옵션으로 다른 서비스를 지정해야 합니다.
 
 ## 라이선스
 

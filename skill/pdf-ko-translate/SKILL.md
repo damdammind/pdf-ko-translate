@@ -1,13 +1,15 @@
 ---
 name: pdf-ko-translate
-description: 영어 PDF를 원본 레이아웃·줄바꿈을 유지한 채 Claude 품질로 한국어 번역 (API 키 불필요, pdf2zh 캐시 주입 방식). "PDF 번역", "영한 번역", "pdf2zh로 번역", 영어 PDF를 한국어로 바꿔 달라는 요청에 사용.
+description: 영어 PDF를 원본 레이아웃·줄바꿈을 유지한 채 Claude가 직접 한국어로 번역 (외부 번역 서비스·API 키 불필요, pdf2zh 레이아웃 + 캐시 주입 방식). "PDF 번역", "영한 번역", "pdf2zh로 번역", 영어 PDF를 한국어로 바꿔 달라는 요청에 사용.
 ---
 
 # PDF 영→한 번역 (pdf2zh 레이아웃 + Claude 번역)
 
-pdf2zh는 레이아웃 배치만 맡고, 번역문은 Claude가 직접 쓴다. pdf2zh는 번역 결과를
-`~/.cache/pdf2zh/cache.v1.db`(`_translationcache`)에 저장해 두고 재사용하므로, 그 캐시에
-Claude 번역을 넣고 다시 실행하면 원본 레이아웃에 Claude 번역이 들어간다.
+pdf2zh는 레이아웃 배치만 맡고, 번역문은 처음부터 Claude가 직접 쓴다. 외부 번역 서비스(Bing, Google 등)는
+전혀 쓰지 않는다. pdf2zh는 `$K/pdf2zh_claude.py`로만 실행하는데, 이 래퍼는 번역 엔진을 "원문을 그대로
+돌려주는" 가짜 엔진(`claude`)으로 바꿔서 pdf2zh가 PDF를 조각으로 나누고 캐시
+(`~/.cache/pdf2zh/cache.v1.db`, translate_engine='claude')에 자리를 만들게 한다. 그 자리에 Claude 번역을
+넣고 다시 실행하면 원본 레이아웃에 Claude 번역이 들어간다. 문서 텍스트는 Claude 말고 어디에도 보내지 않는다.
 
 스크립트: 이 SKILL.md가 있는 폴더의 `scripts/` (보통 `~/.claude/skills/pdf-ko-translate/scripts/`, 이하 `$K`)
 실행: `uv run --no-project [--with pymupdf] python -I $K/<script>.py ...`
@@ -20,11 +22,12 @@ Claude 번역을 넣고 다시 실행하면 원본 레이아웃에 Claude 번역
 2. `uv run --no-project python -I $K/ensure_env.py` 실행. 하는 일:
    - pdf2zh 1.9.11이 없거나 버전이 다르면 `$K/requirements-lock.txt`로 의존성 버전을 고정해 설치(처음 한 번, 수 분 걸림. 사용자에게 미리 알림)
    - 줄바꿈 패치(`$K/apply_patch.py`)가 없으면 적용 → 번역문의 `\n`이 강제 줄바꿈이 된다
-   - "준비 완료"가 나오면 다음 단계로. pdf2zh가 PATH에 없다는 주의가 나오면 `uv tool dir --bin`의 pdf2zh를 전체 경로로 쓴다.
+   - "준비 완료"가 나오면 다음 단계로. (pdf2zh가 PATH에 없어도 된다. `pdf2zh_claude.py`가 설치 위치를 찾아 실행한다.)
    - 실패하면 출력 메시지를 사용자에게 그대로 보여 주고 멈춘다.
 
 ## 0-1. 실행 시 주의
-- 번역 서비스는 `-s bing`을 쓴다(Google은 막히는 네트워크가 많음). Bing 결과는 버려지고 Claude 번역으로 바뀐다.
+- `pdf2zh`를 직접 부르지 말고 항상 `uv run --no-project python -I $K/pdf2zh_claude.py ...`로 실행한다
+  (`-s` 옵션은 주지 않는다). 직접 `pdf2zh -s bing` 등을 부르면 문서가 외부 번역 서비스로 나간다.
   출력 폴더는 미리 만들어 둔다(없으면 저장 단계에서 죽음).
 - pdf2zh는 **작업 폴더 안에서** 실행한다(scratchpad 경로는 이 환경에서 실패함). 한글 파일명은 영문 이름으로 복사해서 쓴다.
 
@@ -32,7 +35,7 @@ Claude 번역을 넣고 다시 실행하면 원본 레이아웃에 Claude 번역
 ```bash
 cp "<원본>.pdf" src.pdf; mkdir -p out
 MARK=$(uv run --no-project python -I -c "import sqlite3,os;print(sqlite3.connect(os.path.expanduser('~/.cache/pdf2zh/cache.v1.db')).execute('select coalesce(max(id),0) from _translationcache').fetchone()[0])")
-timeout 600 pdf2zh src.pdf -s bing -lo ko -o out --ignore-cache   # 먼저 -p 1 로 1페이지 스모크 테스트
+timeout 600 uv run --no-project python -I $K/pdf2zh_claude.py src.pdf -lo ko -o out --ignore-cache   # 네트워크 없음, 수십 초
 uv run --no-project --with pymupdf python -I $K/export_segments.py src.pdf $MARK segments.json
 ```
 `--ignore-cache`로 돌리면 이번 문서의 조각이 모두 `MARK`보다 큰 id로 새로 저장된다.
@@ -52,7 +55,7 @@ segments.json의 `src`(원문)와 `lines`(원본 강제 줄바꿈 위치를 `\n`
 ## 3. 반영 → 재생성 → 확인
 ```bash
 uv run --no-project python -I $K/apply_translations.py segments.json ko.json
-pdf2zh src.pdf -s bing -lo ko -o out          # 캐시를 쓰므로 수 초
+uv run --no-project python -I $K/pdf2zh_claude.py src.pdf -lo ko -o out   # 캐시의 Claude 번역으로 생성
 uv run --no-project --with pymupdf python -I $K/render_pages.py out/src-mono.pdf out/png all
 ```
 PNG를 **모든 페이지** 열어 확인: 빈칸(조각 순서), 오른쪽 넘침, 겹침, 미번역. 고칠 것만 담은

@@ -5,7 +5,6 @@ usage: uv run --no-project python -I ensure_env.py [--check]
 1) pdf2zh 1.9.11 이 uv tool 로 설치돼 있는지 확인 -> 없거나 버전이 다르면
    `uv tool install pdf2zh==1.9.11 --python 3.12 -c requirements-lock.txt --force`
 2) 줄바꿈 패치 확인 -> 없으면 apply_patch.py 로 적용
-3) pdf2zh 실행 파일이 PATH 에 있는지 확인
 
 --check: 확인만 하고 아무것도 설치하지 않음.
 종료 코드 0 = 준비 완료, 1 = 준비 안 됨(--check) 또는 실패.
@@ -66,13 +65,7 @@ def main():
             sys.exit("패치 실패")
     print("줄바꿈 패치: 적용됨")
 
-    exe = shutil.which("pdf2zh")
-    if not exe:
-        print("[주의] pdf2zh 가 PATH 에 없습니다. `uv tool update-shell` 실행 후 터미널을 다시 열거나, "
-              "uv tool 의 bin 폴더(`uv tool dir --bin`)의 pdf2zh 를 전체 경로로 실행하세요.")
-    else:
-        print(f"pdf2zh 실행 파일: {exe}")
-    print("준비 완료")
+    print("준비 완료 (pdf2zh는 pdf2zh_claude.py로 실행)")
 
 
 if __name__ == "__main__":

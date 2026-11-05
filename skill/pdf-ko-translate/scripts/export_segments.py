@@ -115,7 +115,7 @@ def main():
     con = sqlite3.connect(DB)
     rows = con.execute(
         "select id, original_text from _translationcache "
-        "where translate_engine='bing' and id>? order by id",
+        "where translate_engine='claude' and id>? order by id",
         (marker,),
     ).fetchall()
     L = visual_lines(pymupdf.open(pdf))
