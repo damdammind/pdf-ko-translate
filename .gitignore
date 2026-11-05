@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.ptest/
+out/
+*.pdf
+!examples/*.pdf
+segments.json
+ko*.json

@@ -1,0 +1,45 @@
+diff --git a/pdf2zh/converter.py b/pdf2zh/converter.py
+index 66a9c55..a73088c 100644
+--- a/pdf2zh/converter.py
++++ b/pdf2zh/converter.py
+@@ -400,6 +400,7 @@ class TranslateConverter(PDFConverterEx):
+             tx = x
+             fcur_ = fcur
+             ptr = 0
++            nbrk = 0  # [patch] 强制换行次数
+             log.debug(f"< {y} {x} {x0} {x1} {size} {brk} > {sstk[id]} | {new}")
+ 
+             ops_vals: list[dict] = []
+@@ -420,6 +421,23 @@ class TranslateConverter(PDFConverterEx):
+                         mod = var[vid][-1].width
+                 else:  # 加载文字
+                     ch = new[ptr]
++                    if ch == "\n":  # [patch] 译文强制换行
++                        if cstk:
++                            ops_vals.append({
++                                "type": OpType.TEXT,
++                                "font": fcur,
++                                "size": size,
++                                "x": tx,
++                                "dy": 0,
++                                "rtxt": raw_string(fcur, cstk),
++                                "lidx": lidx
++                            })
++                            cstk = ""
++                        x = x0
++                        lidx += 1
++                        nbrk += 1
++                        ptr += 1
++                        continue
+                     fcur_ = None
+                     try:
+                         if fcur_ is None and self.fontmap["tiro"].to_unichr(ord(ch)) == ch:
+@@ -509,6 +527,8 @@ class TranslateConverter(PDFConverterEx):
+                 })
+ 
+             line_height = default_line_height
++            if nbrk and lidx:  # [patch] 强制换行时按原段落高度均匀分布行距
++                line_height = max(default_line_height, min((height - size) / (lidx * size), 2.5))
+ 
+             while (lidx + 1) * size * line_height > height and line_height >= 1:
+                 line_height -= 0.05
