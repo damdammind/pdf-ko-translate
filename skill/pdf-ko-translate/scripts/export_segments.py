@@ -1,11 +1,18 @@
 """pdf2zh 캐시에서 이번 PDF의 원문 조각을 꺼내고, 원본 PDF의 줄바꿈 정보를 붙인다.
 
-usage: export_segments.py <원본.pdf> <marker_id> <out.json>
+usage: export_segments.py <원본.pdf> <marker_id> <out.json> [옵션]
   marker_id: pdf2zh(--ignore-cache) 실행 직전의 캐시 max(id). 그보다 큰 id가 이번 문서 조각.
+  --glossary/-g <csv>      용어집 추가 (여러 번 가능, 먼저 준 것이 우선)
+  --no-default-glossary    스킬 기본 용어집(glossary/*.csv) 끄기
+  --translate-references   참고문헌도 번역 (기본: 원문 유지)
 
-out.json: [{"id", "src", "lines", "hard_breaks"}]
+out.json: [{"id", "src", "lines", "hard_breaks", "terms"?, "keep"?}]
   lines: 원문을 원본의 '강제 줄바꿈' 위치에서 \n 으로 나눈 것 (목록 항목, 짧게 끝난 줄)
          번역문에도 같은 위치에 \n 을 넣으면 pdf2zh(패치판)가 그 자리에서 줄을 바꾼다.
+  terms: 이 조각에 나온 용어집 용어 {"원어": "번역어"} — 번역할 때 이 번역어를 쓴다.
+  keep:  "references" = 참고문헌 조각. 번역하지 않으면 apply 단계에서 자동으로 원문 유지.
+         (보통은 pdf2zh_claude.py가 참고문헌 영역을 아예 손대지 않아 조각이 생기지 않는다. 이건 안전망.)
+out.todo.json: keep 조각을 뺀 번역 작업 목록 (Claude는 이것만 읽으면 된다).
 """
 import json
 import os
@@ -15,35 +22,13 @@ import sys
 
 import pymupdf
 
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import glossary  # noqa: E402
+from refs import reference_range, visual_lines  # noqa: E402
+
 DB = os.path.expanduser("~/.cache/pdf2zh/cache.v1.db")
 LIST_RE = re.compile(r"^(\d+[.):]|[•\-–→▪◦·*])\s*")
-
-
-def visual_lines(doc):
-    """페이지별로 같은 기준선의 줄을 합친 '눈에 보이는 줄' 목록."""
-    out = []
-    for pno, page in enumerate(doc):
-        raw = []
-        for b in page.get_text("dict")["blocks"]:
-            if b["type"] != 0:
-                continue
-            for l in b["lines"]:
-                t = "".join(s["text"] for s in l["spans"])
-                if not t.strip():
-                    continue
-                size = max(s["size"] for s in l["spans"])
-                raw.append({"t": t, "bbox": list(l["bbox"]), "size": size, "page": pno})
-        merged = []
-        for r in raw:
-            p = merged[-1] if merged else None
-            if p and abs(p["bbox"][3] - r["bbox"][3]) < 2 and r["bbox"][0] >= p["bbox"][0]:
-                p["t"] += " " + r["t"]
-                p["bbox"][2] = max(p["bbox"][2], r["bbox"][2])
-                p["size"] = max(p["size"], r["size"])
-            else:
-                merged.append(r)
-        out.extend(merged)
-    return out
 
 
 PH_RE = re.compile(r"\{v\d+\}")
@@ -109,9 +94,41 @@ def annotate(src, L):
     return src, 0
 
 
+def locate(src, L):
+    """조각이 시작하는 '눈에 보이는 줄'의 번호 (못 찾으면 None)."""
+    sN, _ = nows(src)
+    if len(sN) < 3:
+        return None
+    for j, line in enumerate(L):
+        tN, _ = nows(line["t"])
+        if len(tN) < 3:
+            continue
+        if sN.startswith(tN) or (len(sN) >= 6 and tN.startswith(sN)):
+            return j
+    return None
+
+
+def parse_args(argv):
+    pos, opt = [], {"glossary": [], "default_glossary": True, "references": False}
+    it = iter(argv)
+    for a in it:
+        if a in ("--glossary", "-g"):
+            opt["glossary"].append(next(it))
+        elif a == "--no-default-glossary":
+            opt["default_glossary"] = False
+        elif a == "--translate-references":
+            opt["references"] = True
+        else:
+            pos.append(a)
+    if len(pos) != 3:
+        sys.exit(__doc__)
+    return pos, opt
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
-    pdf, marker, outp = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+    (pdf, marker, outp), opt = parse_args(sys.argv[1:])
+    marker = int(marker)
     con = sqlite3.connect(DB)
     rows = con.execute(
         "select id, original_text from _translationcache "
@@ -119,13 +136,44 @@ def main():
         (marker,),
     ).fetchall()
     L = visual_lines(pymupdf.open(pdf))
-    res = []
+
+    rr = None if opt["references"] else reference_range(L)
+    terms = glossary.load(opt["glossary"], opt["default_glossary"])
+    compiled = glossary.compile_terms(terms)
+
+    res, prev_ref, used = [], False, {}
     for i, src in rows:
         lines, n = annotate(src, L)
-        res.append({"id": i, "src": src, "lines": lines, "hard_breaks": n})
+        r = {"id": i, "src": src, "lines": lines, "hard_breaks": n}
+        if rr:
+            j = locate(src, L)
+            is_ref = (rr[0] < j < rr[1]) if j is not None else prev_ref
+            prev_ref = is_ref
+            if is_ref:
+                r["keep"] = "references"
+        if "keep" not in r:
+            t = glossary.find(src, compiled)
+            if t:
+                r["terms"] = t
+                used.update(t)
+        res.append(r)
+
     with open(outp, "w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False, indent=1)
+    # Claude가 번역할 것만 담은 작업 목록 (참고문헌 등 원문 유지 조각은 뺌 -> 토큰 절약)
+    todo = os.path.splitext(outp)[0] + ".todo.json"
+    with open(todo, "w", encoding="utf-8") as f:
+        json.dump([r for r in res if "keep" not in r], f, ensure_ascii=False, indent=1)
+
+    nref = sum(1 for r in res if r.get("keep") == "references")
     print(f"{len(res)} segments, {sum(1 for r in res if r['hard_breaks'])} with hard line breaks -> {outp}")
+    if rr:
+        print(f"참고문헌: '{L[rr[0]]['t'].strip()}' (p.{L[rr[0]]['page'] + 1}) 이후는 원문 유지"
+              + (f" (남은 조각 {nref}개도 원문 유지)" if nref else ""))
+    else:
+        print("참고문헌: " + ("번역함(--translate-references)" if opt["references"] else "찾지 못함"))
+    print(f"용어집: {len(terms)}개 용어 중 이 문서에 {len(used)}개 등장")
+    print(f"번역할 조각 {len(res) - nref}개 -> {todo}")
 
 
 if __name__ == "__main__":

@@ -6,20 +6,45 @@
 - 번역: Claude Code가 문맥을 보며 직접 번역
 - 결과: `*_한국어.pdf`(한국어만), `*_영한대역.pdf`(원문/번역 나란히)
 
+## 주요 기능
+
+| 기능 | 설명 |
+|---|---|
+| 레이아웃·줄바꿈 유지 | 그림·수식 위치는 그대로, 목록·명령어 줄의 강제 줄바꿈과 원문 행간까지 맞춥니다 |
+| **표 셀 번역** | pdf2zh는 원래 표를 번역하지 않습니다. 이 스킬은 표를 셀 단위로 나눠 번역하고, 셀 안에서 여러 줄로 나뉜 글은 한 문단으로 합친 뒤 셀 폭 안에서 다시 줄을 바꿉니다. 숫자만 있는 칸은 그대로 둡니다 |
+| **참고문헌 원문 유지** | `References` 다음부터 `Appendix` 전까지는 원본 글자를 손대지 않습니다(서지 정보 보존, 토큰 절약). 제목만 '참고문헌'으로 번역 |
+| **용어집 CSV** | `source,target` 형식. 조각마다 나온 용어를 Claude에게 알려 주고, 다르게 번역하면 경고합니다. 기본 AI 용어집(`glossary/ai.csv`) 포함 |
+| 전 페이지 검수 | 모든 페이지를 이미지로 렌더링해 넘침·겹침·미번역을 확인하고 고칩니다 |
+
+## 용어집
+
+우선순위(앞이 이김):
+1. 번역할 때 지정한 파일(`export_segments.py -g my_terms.csv`)
+2. 개인 용어집 `~/.pdf-ko-translate/glossary.csv` — 스킬을 다시 설치해도 유지됩니다. Claude에게 "앞으로 agent는 '에이전트'로 번역해"라고 말하면 여기에 추가합니다.
+3. 기본 용어집 `skill/pdf-ko-translate/glossary/ai.csv` (AI 교육·행정 자료용 약 70개)
+
+```csv
+source,target
+hallucination,환각
+retrieval-augmented generation,검색 증강 생성(RAG)
+Claude,Claude
+```
+
+옵션: 표 번역 끄기 `--no-tables`, 셀 합치기 기준 `--table-line-skip 1.35`(작을수록 덜 합침), 참고문헌도 번역 `--translate-references`(`pdf2zh_claude.py`와 `export_segments.py` 모두에), 기본 용어집 끄기 `--no-default-glossary`.
+
 ## 동작 방식
 
 번역은 처음부터 끝까지 Claude가 합니다. Bing·Google 같은 외부 번역 서비스는 쓰지 않고, 문서 텍스트도 Claude 말고는 어디에도 보내지 않습니다. pdf2zh는 PDF를 나누고 다시 조립하는 레이아웃 도구로만 씁니다.
 
 1. `pdf2zh_claude.py`가 pdf2zh를 실행합니다. 이때 번역 엔진을 "원문을 그대로 돌려주는" 가짜 엔진(`claude`)으로 바꿔 두어서, pdf2zh는 외부에 접속하지 않고 PDF를 문단 조각으로 나눠 번역 캐시(`~/.cache/pdf2zh/cache.v1.db`)에 자리만 만듭니다.
 2. `export_segments.py`가 그 조각들을 꺼내고, 원본 PDF에서 강제 줄바꿈 위치(목록 항목, 명령어 줄 등)를 찾아 표시합니다.
-3. Claude가 모든 조각을 문맥을 보며 번역하고, 원본의 강제 줄바꿈 자리에 `
-`을 넣습니다.
+   이때 레이아웃 모델이 찾은 표는 셀 단위 조각으로 바꾸고, 참고문헌 영역은 손대지 않음으로 표시합니다(`table_cells.py`, pdf2zh 원본 파일은 고치지 않음). 각 조각에는 그 조각에 나온 용어집 용어도 붙입니다.
+3. Claude가 모든 조각을 문맥을 보며 번역하고, 원본의 강제 줄바꿈 자리에 `\n`을 넣습니다.
 4. `apply_translations.py`가 Claude 번역을 캐시의 자리에 넣습니다.
 5. `pdf2zh_claude.py`를 다시 실행하면 pdf2zh가 캐시의 Claude 번역을 원본 레이아웃에 배치합니다.
 6. `render_pages.py`로 모든 페이지를 이미지로 확인하고, 줄 넘침·빈칸 같은 배치 문제가 있는 조각만 고쳐 다시 만듭니다.
 
-pdf2zh 원본은 번역문의 줄바꿈을 무시합니다. 그래서 `apply_patch.py`로 `
-`이 있으면 그 자리에서 줄을 바꾸고, 원래 문단 높이에 맞게 줄 간격을 벌리도록 고칩니다([patch/converter.diff](patch/converter.diff) 참고).
+pdf2zh 원본은 번역문의 줄바꿈을 무시합니다. 그래서 `apply_patch.py`로 `\n`이 있으면 그 자리에서 줄을 바꾸고, 원래 문단 높이에 맞게 줄 간격을 벌리도록 고칩니다([patch/converter.diff](patch/converter.diff) 참고).
 또 pdf2zh는 한국어 행간을 글자 크기의 1.2배로 고정해 원문보다 줄이 빽빽해지므로, 원문 문단의 실제 줄 간격을 재서 번역문에도 같은 간격을 씁니다(번역문이 원문보다 길어 넘치면 그때만 줄임). 예전 패치가 깔린 PC는 다음 사용 때 `ensure_env.py`가 빠진 부분만 자동으로 추가합니다.
 
 ## 설치
@@ -82,6 +107,14 @@ pdf2zh를 다시 설치하거나 업데이트하면 패치가 사라지지만, �
 - 원본 링크의 밑줄(파란 선)은 원래 위치에 그대로 남습니다.
 - 이미지 안에 있는 글자는 번역되지 않습니다.
 - 원본에서 한 줄짜리 문단은 pdf2zh가 줄을 바꾸지 않으므로, 번역문을 원문 폭에 맞게 간결하게 써야 합니다.
+- 표 감지는 레이아웃 모델에 달려 있어 모델이 표로 못 본 표는 일반 문단처럼 처리됩니다. 칸 사이 여백이 아주 좁고 열 위치가 행마다 다른 표는 셀이 잘못 나뉠 수 있습니다(`--no-tables`로 끌 수 있음).
+- 텍스트 레이어가 없는 스캔 PDF는 번역할 수 없습니다.
+- 문서 텍스트는 Claude(Anthropic)로 전송됩니다. 기밀 문서는 소속 기관의 보안 지침을 먼저 확인하세요.
+- Windows의 Claude 데스크톱 앱에서 `uv run`이 `Missing expected target directory for Python minor version link` 오류를 내면, `SKILL.md` 0단계대로 `UV_PYTHON_INSTALL_DIR`·`UV_TOOL_DIR` 환경 변수를 `~/.uv` 아래로 지정하세요.
+
+## 참고한 프로젝트
+
+표 셀 합치기, 참고문헌 원문 유지, 용어집 우선순위 아이디어는 [maenjh/ko-paper](https://github.com/maenjh/ko-paper)(BabelDOC 기반)를 참고했습니다. 코드는 가져오지 않았습니다.
 
 ## 라이선스
 

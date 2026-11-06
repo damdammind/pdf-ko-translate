@@ -1,0 +1,73 @@
+source,target
+# 기본 AI 용어집 (행정·교육 자료용). 개인 용어는 ~/.pdf-ko-translate/glossary.csv 에 넣으면 이 파일보다 우선한다.
+# 너무 일반적인 단어(model, skill, safety 등)는 넣지 않는다.
+artificial intelligence,인공지능
+generative AI,생성형 AI
+artificial general intelligence,범용 인공지능(AGI)
+large language model,대규모 언어 모델
+language model,언어 모델
+foundation model,파운데이션 모델
+frontier model,프런티어 모델
+multimodal,멀티모달
+AI agent,AI 에이전트
+agent,에이전트
+agentic,에이전트형
+subagent,서브에이전트
+chatbot,챗봇
+hallucination,환각
+prompt,프롬프트
+prompt engineering,프롬프트 엔지니어링
+system prompt,시스템 프롬프트
+context window,컨텍스트 창
+context engineering,컨텍스트 엔지니어링
+token,토큰
+tokenizer,토크나이저
+few-shot,퓨샷
+zero-shot,제로샷
+chain of thought,생각의 사슬(CoT)
+fine-tuning,파인튜닝
+pre-training,사전학습
+training data,학습 데이터
+synthetic data,합성 데이터
+reinforcement learning,강화학습
+reinforcement learning from human feedback,인간 피드백 기반 강화학습(RLHF)
+retrieval-augmented generation,검색 증강 생성(RAG)
+embedding,임베딩
+vector database,벡터 데이터베이스
+knowledge cutoff,학습 데이터 기준일
+neural network,신경망
+deep learning,딥러닝
+machine learning,머신러닝
+transformer,트랜스포머
+diffusion model,확산 모델
+distillation,증류
+quantization,양자화
+overfitting,과적합
+benchmark,벤치마크
+scaling law,스케일링 법칙
+open-weight,오픈 웨이트
+open source,오픈소스
+alignment,정렬
+guardrail,가드레일
+jailbreak,탈옥
+prompt injection,프롬프트 인젝션
+red teaming,레드팀
+sycophancy,아첨
+interpretability,해석 가능성
+deepfake,딥페이크
+tool use,도구 사용
+function calling,함수 호출
+Model Context Protocol,모델 컨텍스트 프로토콜(MCP)
+API key,API 키
+rate limit,사용량 제한
+latency,지연 시간
+vibe coding,바이브 코딩
+copilot,코파일럿
+workflow,워크플로
+automation,자동화
+use case,활용 사례
+human in the loop,사람 개입(human-in-the-loop)
+data privacy,데이터 프라이버시
+personal information,개인정보
+digital literacy,디지털 리터러시
+AI literacy,AI 리터러시

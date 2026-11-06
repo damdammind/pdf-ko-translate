@@ -4,5 +4,5 @@ __pycache__/
 out/
 *.pdf
 !examples/*.pdf
-segments.json
+segments*.json
 ko*.json

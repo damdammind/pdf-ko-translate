@@ -152,6 +152,8 @@ def main():
         new = new.replace(old, rep)
     if not os.path.exists(conv + ".orig"):
         shutil.copyfile(conv, conv + ".orig")
+    # uv는 패키지 파일을 캐시와 하드링크로 공유하므로, 지우고 새로 써야 캐시 원본이 안 바뀐다
+    os.remove(conv)
     with open(conv, "w", encoding="utf-8", newline="") as f:
         f.write(new)
     print("패치 완료. (원본: converter.py.orig)")
